@@ -20,6 +20,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['sleep']
     args: ['99d']
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
   - name: docker
     image: docker:cli
     command: ['sleep']
@@ -36,7 +39,7 @@ spec:
     }
     
     environment {
-        DOCKER_IMAGE = 'umasankar33/my-python-app' // Make sure this matches your Docker Hub username
+        DOCKER_IMAGE = 'umasankar33/my-python-app'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         SONARQUBE_SERVER = 'http://sonarqube-service.sonarqube.svc.cluster.local:9000'
     }
@@ -50,7 +53,7 @@ spec:
 
         stage('2. Install Dependencies & Test') {
             steps {
-                dir('python') { // Targets your subfolder where requirements.txt lives
+                dir('python') {
                     container('python') {
                         sh '''
                             python -m venv venv
