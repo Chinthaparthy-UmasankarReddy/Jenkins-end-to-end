@@ -4,9 +4,8 @@ pipeline {
     }
     
     environment {
-        DOCKER_IMAGE = 'your-dockerhub-username/my-java-app'
+        DOCKER_IMAGE = 'umasankar33/my-java-app'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        SONARQUBE_SERVER = 'http://sonarqube-service:9000'
     }
 
     stages {
@@ -18,8 +17,7 @@ pipeline {
 
         stage('2. Build & Unit Test') {
             steps {
-                // Use 'dir' if your pom.xml is in a subfolder. Remove 'dir' block if pom.xml is at root.
-                dir('Beginner') {
+                dir('Beginner') { // Update to match your folder structure (e.g., Beginner or root)
                     container('maven') {
                         sh 'mvn clean package -DskipTests=false'
                     }
@@ -27,17 +25,20 @@ pipeline {
             }
         }
 
+        /* 
+        // Uncomment this stage once you have set up a SonarQube server and added the 'sonarqube-token' credential in Jenkins
         stage('3. SonarQube Quality Gate') {
             steps {
                 dir('Beginner') {
                     container('maven') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                            sh "mvn sonar:sonar -Dsonar.host.url=${SONARQUBE_SERVER} -Dsonar.login=${SONAR_TOKEN}"
+                            sh "mvn sonar:sonar -Dsonar.host.url=http://sonarqube-service:9000 -Dsonar.login=${SONAR_TOKEN}"
                         }
                     }
                 }
             }
         }
+        */
 
         stage('4. Build Docker Image') {
             steps {
@@ -52,6 +53,7 @@ pipeline {
         stage('5. Trivy Container Vulnerability Scan') {
             steps {
                 container('trivy') {
+                    // Scans the locally built image for high/critical vulnerabilities
                     sh "trivy image --severity HIGH,CRITICAL --exit-code 1 ${DOCKER_IMAGE}:${IMAGE_TAG}"
                 }
             }
@@ -60,29 +62,10 @@ pipeline {
         stage('6. Push to Docker Hub') {
             steps {
                 container('docker') {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DockerHUBID')]) {
+                        sh "echo ${DockerHUBID} | docker login -u ${DOCKER_USER} --password-stdin"
                         sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
                         sh "docker push ${DOCKER_IMAGE}:latest"
-                    }
-                }
-            }
-        }
-
-        stage('7. Update GitHub Manifests (GitOps)') {
-            steps {
-                container('maven') {
-                    withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        sh '''
-                            git config --global user.email "jenkins@ci.com"
-                            git config --global user.name "Jenkins CI"
-                            
-                            sed -i "s|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:${IMAGE_TAG}|g" deployment.yaml
-                            
-                            git add deployment.yaml
-                            git commit -m "CI: update image tag to ${IMAGE_TAG}"
-                            git push https://${GIT_USER}:${GIT_PASS}@github.com/your-username/your-manifests-repo.git HEAD:main
-                        '''
                     }
                 }
             }
@@ -91,8 +74,12 @@ pipeline {
 
     post {
         always {
-            deleteDir() // Built-in step to clean the workspace safely
-            echo "Pipeline finished. Ephemeral pod destroyed."
+            // Fix file permissions inside the container before deleting workspace to avoid Operation not permitted errors
+            container('maven') {
+                sh 'chmod -R 777 . || true'
+            }
+            deleteDir()
+            echo "Pipeline finished. Ephemeral pod destroyed cleanly."
         }
     }
 }
