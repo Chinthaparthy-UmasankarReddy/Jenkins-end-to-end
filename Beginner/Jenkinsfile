@@ -27,11 +27,11 @@ pipeline {
 
         stage('3. SonarQube Quality Gate') {
             steps {
-                dir('Beginner') { // Adjust folder path if needed
+                dir('Beginner') { // Update if your folder name is different
                     container('maven') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             sh """
-                                mvn sonar:sonar \
+                                mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                                 -Dsonar.host.url=http://sonarqube-service.sonarqube.svc.cluster.local:9000 \
                                 -Dsonar.token=${SONAR_TOKEN}
                             """
