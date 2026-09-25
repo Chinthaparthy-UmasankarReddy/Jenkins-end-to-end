@@ -25,20 +25,21 @@ pipeline {
             }
         }
 
-        /* 
-        // Uncomment this stage once you have set up a SonarQube server and added the 'sonarqube-token' credential in Jenkins
         stage('3. SonarQube Quality Gate') {
             steps {
-                dir('Beginner') {
+                dir('Beginner') { // Adjust folder path if needed
                     container('maven') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                            sh "mvn sonar:sonar -Dsonar.host.url=http://sonarqube-service:9000 -Dsonar.login=${SONAR_TOKEN}"
+                            sh """
+                                mvn sonar:sonar \
+                                -Dsonar.host.url=http://sonarqube-service.sonarqube.svc.cluster.local:9000 \
+                                -Dsonar.token=${SONAR_TOKEN}
+                            """
                         }
                     }
                 }
             }
         }
-        */
 
         stage('4. Build Docker Image') {
             steps {
