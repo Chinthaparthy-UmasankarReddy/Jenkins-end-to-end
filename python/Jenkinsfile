@@ -36,7 +36,7 @@ spec:
     }
     
     environment {
-        DOCKER_IMAGE = 'your-dockerhub-username/my-python-app'
+        DOCKER_IMAGE = 'umasankar33/my-python-app' // Make sure this matches your Docker Hub username
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         SONARQUBE_SERVER = 'http://sonarqube-service.sonarqube.svc.cluster.local:9000'
     }
@@ -50,25 +50,29 @@ spec:
 
         stage('2. Install Dependencies & Test') {
             steps {
-                container('python') {
-                    sh '''
-                        python -m venv venv
-                        . venv/bin/activate
-                        pip install --no-cache-dir -r requirements.txt
-                    '''
+                dir('python') { // Targets your subfolder where requirements.txt lives
+                    container('python') {
+                        sh '''
+                            python -m venv venv
+                            . venv/bin/activate
+                            pip install --no-cache-dir -r requirements.txt
+                        '''
+                    }
                 }
             }
         }
 
         stage('3. SonarQube Quality Gate') {
             steps {
-                container('sonar') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                            sonar-scanner \
-                            -Dsonar.host.url=${SONARQUBE_SERVER} \
-                            -Dsonar.token=${SONAR_TOKEN}
-                        """
+                dir('python') {
+                    container('sonar') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh """
+                                sonar-scanner \
+                                -Dsonar.host.url=${SONARQUBE_SERVER} \
+                                -Dsonar.token=${SONAR_TOKEN}
+                            """
+                        }
                     }
                 }
             }
@@ -76,8 +80,10 @@ spec:
 
         stage('4. Build Docker Image') {
             steps {
-                container('docker') {
-                    sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                dir('python') {
+                    container('docker') {
+                        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                    }
                 }
             }
         }
