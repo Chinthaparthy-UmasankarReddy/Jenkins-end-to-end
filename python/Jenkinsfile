@@ -1,0 +1,92 @@
+podTemplate(name: 'python-ci-pod', namespace: 'jenkins', label: 'python-ci-pod', containers: [
+    containerTemplate(name: 'python', image: 'python:3.11-slim', ttyEnabled: true, command: 'sleep', args: '99d'),
+    containerTemplate(name: 'sonar', image: 'sonarsource/sonar-scanner-cli:latest', ttyEnabled: true, command: 'sleep', args: '99d'),
+    containerTemplate(name: 'trivy', image: 'aquasec/trivy:latest', ttyEnabled: true, command: 'sleep', args: '99d'),
+    containerTemplate(name: 'docker', image: 'docker:cli', ttyEnabled: true, command: 'sleep', args: '99d')
+], volumes: [
+    hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock')
+]) {
+    pipeline {
+        agent { label 'python-ci-pod' }
+        
+        environment {
+            DOCKER_IMAGE = 'your-dockerhub-username/my-python-app'
+            IMAGE_TAG = "${env.BUILD_NUMBER}"
+            SONARQUBE_SERVER = 'http://sonarqube-service.sonarqube.svc.cluster.local:9000'
+        }
+
+        stages {
+            stage('1. Checkout Code') {
+                steps {
+                    checkout scm
+                }
+            }
+
+            stage('2. Install Dependencies & Test') {
+                steps {
+                    container('python') {
+                        sh '''
+                            python -m venv venv
+                            . venv/bin/activate
+                            pip install --no-cache-dir -r requirements.txt
+                            # Run tests if you have a tests/ directory
+                            # pytest
+                        '''
+                    }
+                }
+            }
+
+            stage('3. SonarQube Quality Gate') {
+                steps {
+                    container('sonar') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh """
+                                sonar-scanner \
+                                -Dsonar.host.url=${SONARQUBE_SERVER} \
+                                -Dsonar.token=${SONAR_TOKEN}
+                            """
+                        }
+                    }
+                }
+            }
+
+            stage('4. Build Docker Image') {
+                steps {
+                    container('docker') {
+                        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                    }
+                }
+            }
+
+            stage('5. Trivy Container Vulnerability Scan') {
+                steps {
+                    container('trivy') {
+                        sh "trivy image --severity HIGH,CRITICAL --exit-code 1 ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    }
+                }
+            }
+
+            stage('6. Push to Docker Hub') {
+                steps {
+                    container('docker') {
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                            sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                            sh "docker push ${DOCKER_IMAGE}:latest"
+                        }
+                    }
+                }
+            }
+        }
+
+        post {
+            always {
+                container('python') {
+                    sh 'chmod -R 777 . || true'
+                }
+                deleteDir()
+                echo "Pipeline finished. Ephemeral pod destroyed."
+            }
+        }
+    }
+}
