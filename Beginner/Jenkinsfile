@@ -1,103 +1,31 @@
 podTemplate(name: 'ci-pod', namespace: 'jenkins', label: 'ci-pod', containers: [
-    // Maven Container for building
+    // 1. Maven container for building and compiling code
     containerTemplate(name: 'maven', image: 'maven:3.9-eclipse-temurin-17', ttyEnabled: true, command: 'sleep', args: '99d'),
-    // Trivy Container for security scanning
+    
+    // 2. Trivy container for vulnerability scanning of container images
     containerTemplate(name: 'trivy', image: 'aquasec/trivy:latest', ttyEnabled: true, command: 'sleep', args: '99d'),
-    // Docker CLI Container for building/pushing images (sharing Docker socket)
+    
+    // 3. Docker CLI container for building images via host socket sharing
     containerTemplate(name: 'docker', image: 'docker:cli', ttyEnabled: true, command: 'sleep', args: '99d')
 ], volumes: [
+    // Mounts the Docker Desktop host socket so the docker container can build images locally
     hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock')
 ]) {
     pipeline {
         agent { label 'ci-pod' }
-        
-        environment {
-            DOCKER_IMAGE = 'your-dockerhub-username/my-java-app'
-            IMAGE_TAG = "${env.BUILD_NUMBER}"
-            SONARQUBE_SERVER = 'http://sonarqube-service:9000' // Update with your SonarQube URL
-        }
-
         stages {
-            stage('1. Checkout Code') {
-                steps {
-                    checkout scm
-                }
-            }
-
-            stage('2. Build & Unit Test') {
+            stage('Test Pod Setup') {
                 steps {
                     container('maven') {
-                        sh 'mvn clean package -DskipTests=false'
+                        sh 'mvn --version'
                     }
-                }
-            }
-
-            stage('3. SonarQube Quality Gate') {
-                steps {
-                    container('maven') {
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable)]) {
-                            // Run SonarQube analysis via Maven plugin
-                            sh "mvn sonar:sonar -Dsonar.host.url=${SONARQUBE_SERVER} -Dsonar.login=${SONAR_TOKEN}"
-                        }
-                    }
-                }
-            }
-
-            stage('4. Build Docker Image') {
-                steps {
                     container('docker') {
-                        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                        sh 'docker --version'
                     }
-                }
-            }
-
-            stage('5. Trivy Container Vulnerability Scan') {
-                steps {
                     container('trivy') {
-                        // Scan image for critical vulnerabilities and fail build if found
-                        sh "trivy image --severity HIGH,CRITICAL --exit-code 1 ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                        sh 'trivy --version'
                     }
                 }
-            }
-
-            stage('6. Push to Docker Hub') {
-                steps {
-                    container('docker') {
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                            sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
-                            sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                            sh "docker push ${DOCKER_IMAGE}:latest"
-                        }
-                    }
-                }
-            }
-
-            stage('7. Update GitHub Manifests (GitOps)') {
-                steps {
-                    container('maven') {
-                        withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                            sh '''
-                                git config --global user.email "jenkins@ci.com"
-                                git config --global user.name "Jenkins CI"
-                                
-                                # Clone or update deployment repository / manifests
-                                # Example: updating an image tag field in k8s deployment.yaml
-                                sed -i "s|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:${IMAGE_TAG}|g" deployment.yaml
-                                
-                                git add deployment.yaml
-                                git commit -m "CI: update image tag to ${IMAGE_TAG}"
-                                git push https://${GIT_USER}:${GIT_PASS}@github.com/your-username/your-manifests-repo.git HEAD:main
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        post {
-            always {
-                cleanWs()
-                echo "Pipeline finished. Ephemeral pod destroyed."
             }
         }
     }
