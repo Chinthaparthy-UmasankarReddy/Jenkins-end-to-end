@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'ci-pod' // Matches the label of your Pod Template in Jenkins UI
+        label 'ci-pod'
     }
     
     environment {
@@ -18,17 +18,22 @@ pipeline {
 
         stage('2. Build & Unit Test') {
             steps {
-                container('maven') {
-                    sh 'mvn clean package -DskipTests=false'
+                // Use 'dir' if your pom.xml is in a subfolder. Remove 'dir' block if pom.xml is at root.
+                dir('Beginner') {
+                    container('maven') {
+                        sh 'mvn clean package -DskipTests=false'
+                    }
                 }
             }
         }
 
         stage('3. SonarQube Quality Gate') {
             steps {
-                container('maven') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh "mvn sonar:sonar -Dsonar.host.url=${SONARQUBE_SERVER} -Dsonar.login=${SONAR_TOKEN}"
+                dir('Beginner') {
+                    container('maven') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh "mvn sonar:sonar -Dsonar.host.url=${SONARQUBE_SERVER} -Dsonar.login=${SONAR_TOKEN}"
+                        }
                     }
                 }
             }
@@ -36,8 +41,10 @@ pipeline {
 
         stage('4. Build Docker Image') {
             steps {
-                container('docker') {
-                    sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                dir('Beginner') {
+                    container('docker') {
+                        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                    }
                 }
             }
         }
@@ -84,7 +91,7 @@ pipeline {
 
     post {
         always {
-            cleanWs()
+            deleteDir() // Built-in step to clean the workspace safely
             echo "Pipeline finished. Ephemeral pod destroyed."
         }
     }
