@@ -18,7 +18,7 @@ COPY . /app
 FROM gcr.io/distroless/python3-debian12
 WORKDIR /app
 
-# Copy the fully isolated virtual environment from the builder
+# Copy the fully isolated virtual environment and application files from the builder
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 
