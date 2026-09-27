@@ -1,5 +1,5 @@
 # ==========================================
-# Stage 1: Alpine Builder (Compiles dependencies safely)
+# Stage 1: Alpine Builder
 # ==========================================
 FROM python:3.11-alpine AS builder
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY . /app
 FROM gcr.io/distroless/python3-debian12
 WORKDIR /app
 
-# Copy the isolated virtual environment and python script from the builder
+# Copy the isolated virtual environment and python script from builder
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 
