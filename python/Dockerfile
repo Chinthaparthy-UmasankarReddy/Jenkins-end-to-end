@@ -1,5 +1,5 @@
 # ==========================================
-# Stage 1: Alpine Builder
+# Stage 1: Alpine Builder (Isolate compilation)
 # ==========================================
 FROM python:3.11-alpine AS builder
 WORKDIR /app
@@ -14,15 +14,15 @@ RUN python -m venv venv && \
 COPY . /app
 
 # ==========================================
-# Stage 2: Google Distroless Python Runtime
+# Stage 2: Pure Alpine Runtime (Zero Debian Layers)
 # ==========================================
-FROM gcr.io/distroless/python3-debian12
+FROM python:3.11-alpine
 WORKDIR /app
 
-# Copy the isolated virtual environment and python script from builder
+# Copy only the compiled virtual environment and code
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 
 ENV PATH="/app/venv/bin:$PATH"
 EXPOSE 8080
-CMD ["app.py"]
+CMD ["python", "app.py"]
