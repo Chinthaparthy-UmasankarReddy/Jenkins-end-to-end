@@ -1,10 +1,11 @@
 # ==========================================
-# Stage 1: Builder Stage (Build and install deps)
+# Stage 1: Alpine Builder (Compiles dependencies safely)
 # ==========================================
 FROM python:3.11-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache build-base
+
 COPY requirements.txt .
 RUN python -m venv venv && \
     ./venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
@@ -13,12 +14,12 @@ RUN python -m venv venv && \
 COPY . /app
 
 # ==========================================
-# Stage 2: Google Distroless Runtime Stage
+# Stage 2: Google Distroless Python Runtime
 # ==========================================
 FROM gcr.io/distroless/python3-debian12
 WORKDIR /app
 
-# Copy the fully isolated virtual environment and application files from the builder
+# Copy the isolated virtual environment and python script from the builder
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 
