@@ -1,6 +1,11 @@
-# --- Stage 1: Build dependencies ---
-FROM python:3.11-slim AS builder
+# ==========================================
+# Stage 1: Builder Stage (Build dependencies)
+# ==========================================
+FROM python:3.11-alpine AS builder
 WORKDIR /app
+
+# Install build essentials if needed for any packages
+RUN apk add --no-cache build-base
 
 COPY requirements.txt .
 RUN python -m venv venv && \
@@ -8,11 +13,13 @@ RUN python -m venv venv && \
 
 COPY . /app
 
-# --- Stage 2: Clean Runtime Image ---
-FROM python:3.11-slim
+# ==========================================
+# Stage 2: Clean Production Runtime Stage
+# ==========================================
+FROM python:3.11-alpine
 WORKDIR /app
 
-# Copy only the virtual environment and app code from the builder stage
+# Copy the virtual environment and app code from the builder stage
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 

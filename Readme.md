@@ -32,6 +32,7 @@ Ensure you have the following tools installed on your machine:
 Ensure your `kubectl` context points to Docker Desktop:
 
 ```bash
+kubectl config get-contexts
 kubectl config use-context docker-desktop
 kubectl get nodes
 
