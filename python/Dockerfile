@@ -1,14 +1,14 @@
 # ==========================================
-# Stage 1: Builder Stage (Build dependencies)
+# Stage 1: Builder Stage
 # ==========================================
 FROM python:3.11-alpine AS builder
 WORKDIR /app
 
-# Install build essentials if needed for any packages
 RUN apk add --no-cache build-base
 
 COPY requirements.txt .
 RUN python -m venv venv && \
+    ./venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
     ./venv/bin/pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
@@ -19,7 +19,6 @@ COPY . /app
 FROM python:3.11-alpine
 WORKDIR /app
 
-# Copy the virtual environment and app code from the builder stage
 COPY --from=builder /app/venv /app/venv
 COPY --from=builder /app/*.py /app/
 
